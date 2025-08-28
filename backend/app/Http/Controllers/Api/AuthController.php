@@ -58,4 +58,41 @@ class AuthController extends Controller
         ], 201);
     }
 
+    public function edit_profile(Request $request): JsonResponse {
+        $user = $request->user(); // authenticated user
+
+        $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
+            'password' => 'sometimes|string|min:8',
+            'profile_pic' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+        ]);
+
+        // Update name and email
+        if ($request->filled('name')) {
+            $user->name = $request->name;
+        }
+        if ($request->filled('email')) {
+            $user->email = $request->email;
+        }
+
+        // Update password if provided
+        if ($request->filled('password')) {
+            $user->password = bcrypt($request->password);
+        }
+
+        // Handle profile picture upload
+        if ($request->hasFile('profile_pic')) {
+            $path = $request->file('profile_pic')->store('profile_pics', 'public');
+            $user->profile_pic = $path;
+        }
+
+        $user->save();
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'user' => $user
+        ]);
+    }
+
 }
