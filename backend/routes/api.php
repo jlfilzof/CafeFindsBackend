@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\AddressController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\ReviewImageController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -17,4 +19,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
     // address
     Route::apiResource('address', AddressController::class);
+    // review
+    Route::apiResource('review', ReviewController::class);
+    // review image
+    Route::apiResource('review-image', ReviewImageController::class);
 });
