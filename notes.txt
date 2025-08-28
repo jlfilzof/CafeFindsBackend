@@ -1,0 +1,26 @@
+- php artisan install:api
+- In user model, add:
+    use Laravel\Sanctum\HasApiTokens
+    use HasFactory, Notifiable, HasApiTokens;
+- make migrations:
+    php artisan make:migration create_entityName_table
+    add the attributes to migration file and migrate (php artisan migrate)
+- create the model:
+    php artisan make:model entityName
+- make the controller:
+    php artisan make:controller Api/EntityNameController
+    add this to api.php (Route::apiResource('products', ProductController::class); )
+    add the CRUD functions to the controller
+        - create a resource [used to respond in JSON format] (php artisan make:resource ProductResource)
+- modify api error response:
+    go to: https://laravel.com/docs/12.x/errors
+    search Rendering Exceptions as JSON and copy the code above it
+    add that to bootstrap/app.php
+
+AUTHENTICATION:
+    - php artisan make:controller Api/AuthController
+    - add to api.php:
+        Route::get('/login', [AuthController::class, 'login']);
+        Route::get('/register', [AuthController::class, 'register']);
+        etc
+    - implement that routes in the AuthController
