@@ -5,17 +5,16 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReviewResource;
 use App\Models\Review;
+use App\Models\ReviewImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class ReviewController extends Controller
 {
-    /**
-     * List all reviews.
-     */
+    // GET all reviews
     public function index()
     {
-        $reviews = Review::with(['user', 'address', 'images'])->get();
+        $reviews = Review::with(['user', 'address', 'images'])->latest()->get();
 
         if ($reviews->count() > 0) {
             return ReviewResource::collection($reviews);
@@ -24,94 +23,99 @@ class ReviewController extends Controller
         return response()->json(['message' => 'No records found'], 200);
     }
 
-    /**
-     * Store a new review.
-     */
+    // GET a single review
+    public function show(Review $review)
+    {
+        $review->load(['user', 'address', 'images']);
+        return new ReviewResource($review);
+    }
+
+    // POST create a review (single endpoint with images)
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'address_id'      => 'required|exists:addresses,id',
             'cafe_shop_name'  => 'required|string|max:255',
-            'rating'          => 'required|integer|min:1|max:10',
-            'review'          => 'nullable|string',
-            'images.*'        => 'nullable|image|mimes:jpg,jpeg,png|max:2048', // multiple images
+            'rating'          => 'required|integer|min:1|max:5',
+            'review'          => 'required|string',
+            'images.*'        => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->messages()], 422);
         }
 
+        $user = $request->user();
+
+        // create review
         $review = Review::create([
-            'user_id'        => $request->user()->id, // authenticated user
+            'user_id'        => $user->id,
             'address_id'     => $request->address_id,
             'cafe_shop_name' => $request->cafe_shop_name,
             'rating'         => $request->rating,
             'review'         => $request->review,
         ]);
 
-        // Handle image uploads
+        // save multiple images if provided
         if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('review_images', 'public');
-                $review->images()->create([
-                    'image' => $path,
+            foreach ($request->file('images') as $file) {
+                $path = $file->store('review_images', 'public');
+                ReviewImage::create([
+                    'review_id' => $review->id,
+                    'image'     => $path,
                 ]);
             }
         }
 
-        return new ReviewResource($review->load(['user', 'address', 'images']));
+        $review->load(['user', 'address', 'images']);
+
+        return response()->json([
+            'message' => 'Review created successfully',
+            'data'    => new ReviewResource($review)
+        ], 201);
     }
 
-    /**
-     * Show a single review.
-     */
-    public function show(Review $review)
+    // UPDATE a review (with optional new images)
+    public function update(Request $request, Review $review)
     {
-        return new ReviewResource($review->load(['user', 'address', 'images']));
+        $validator = Validator::make($request->all(), [
+            'cafe_shop_name'  => 'sometimes|required|string|max:255',
+            'rating'          => 'sometimes|required|integer|min:1|max:5',
+            'review'          => 'sometimes|required|string',
+            'images.*'        => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->messages()], 422);
+        }
+
+        $review->update($request->only(['cafe_shop_name', 'rating', 'review']));
+
+        // add new images if provided
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                $path = $file->store('review_images', 'public');
+                ReviewImage::create([
+                    'review_id' => $review->id,
+                    'image'     => $path,
+                ]);
+            }
+        }
+
+        $review->load(['user', 'address', 'images']);
+
+        return response()->json([
+            'message' => 'Review updated successfully',
+            'data'    => new ReviewResource($review)
+        ], 200);
     }
 
-    /**
-     * Update a review.
-     */
-    // public function update(Request $request, Review $review)
-    // {
-    //     $this->authorize('update', $review); // if you add policies
+    // DELETE a review
+    public function destroy(Review $review)
+    {
+        $review->images()->delete(); // remove related images
+        $review->delete();
 
-    //     $validator = Validator::make($request->all(), [
-    //         'cafe_shop_name'  => 'sometimes|required|string|max:255',
-    //         'rating'          => 'sometimes|required|integer|min:1|max:5',
-    //         'review'          => 'sometimes|nullable|string',
-    //         'images.*'        => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-    //     ]);
-
-    //     if ($validator->fails()) {
-    //         return response()->json(['errors' => $validator->messages()], 422);
-    //     }
-
-    //     $review->update($request->only(['cafe_shop_name', 'rating', 'review']));
-
-    //     // If new images are uploaded, add them
-    //     if ($request->hasFile('images')) {
-    //         foreach ($request->file('images') as $image) {
-    //             $path = $image->store('review_images', 'public');
-    //             $review->images()->create([
-    //                 'image' => $path,
-    //             ]);
-    //         }
-    //     }
-
-    //     return new ReviewResource($review->load(['user', 'address', 'images']));
-    // }
-
-    // /**
-    //  * Delete a review.
-    //  */
-    // public function destroy(Review $review)
-    // {
-    //     $this->authorize('delete', $review); // if you add policies
-
-    //     $review->delete();
-
-    //     return response()->json(['message' => 'Review deleted successfully']);
-    // }
+        return response()->json(['message' => 'Review deleted successfully'], 200);
+    }
 }
